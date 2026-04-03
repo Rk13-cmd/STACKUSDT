@@ -1,8 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:3001/api';
+  static String get baseUrl {
+    if (kIsWeb) {
+      // When served from the backend, use relative path
+      return '/api';
+    }
+    return 'http://localhost:3001/api';
+  }
 
   final Map<String, String> _headers = {'Content-Type': 'application/json'};
 

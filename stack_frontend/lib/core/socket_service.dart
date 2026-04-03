@@ -1,21 +1,25 @@
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
   factory SocketService() => _instance;
   SocketService._internal();
 
-  IO.Socket? _socket;
+  io.Socket? _socket;
   bool _connected = false;
 
-  String get serverUrl => 'http://localhost:3001';
+  String get serverUrl {
+    if (kIsWeb) return '';
+    return 'http://localhost:3001';
+  }
 
   void connect(String userId) {
     if (_connected) return;
 
-    _socket = IO.io(
-      serverUrl,
-      IO.OptionBuilder()
+    _socket = io.io(
+      serverUrl.isEmpty ? null : serverUrl,
+      io.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
           .build(),
@@ -23,16 +27,16 @@ class SocketService {
 
     _socket!.onConnect((_) {
       _connected = true;
-      print('🔌 Socket connected');
+      debugPrint('🔌 Socket connected');
     });
 
     _socket!.onDisconnect((_) {
       _connected = false;
-      print('🔌 Socket disconnected');
+      debugPrint('🔌 Socket disconnected');
     });
 
     _socket!.onError((error) {
-      print('Socket error: $error');
+      debugPrint('Socket error: $error');
     });
 
     _socket!.connect();

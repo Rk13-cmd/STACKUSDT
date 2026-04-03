@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: stack-usdt-api
+    name: stack-usdt
     env: node
     rootDir: stack_usdt_project/backend_server
-    buildCommand: npm install && npm run build
+    buildCommand: bash build.sh
     startCommand: node dist/index.js
     envVars:
       - key: NODE_ENV
@@ -17,10 +17,6 @@ services:
       - key: NOWPAYMENTS_API_KEY
         sync: false
       - key: NOWPAYMENTS_IPN_SECRET
-        sync: false
-      - key: BACKEND_URL
-        sync: false
-      - key: FRONTEND_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true
