@@ -1,0 +1,30 @@
+# Admin (repo separado)
+stack_admin/
+
+# Flutter builds
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/*.iml
+**/.idea/
+**/flutter_export_environment.sh
+**/flutter_*.png
+
+# Node.js
+**/node_modules/
+**/dist/
+**/.env
+**/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# VS Code
+.vscode/
+
+# Pub
+**/pubspec.lock
