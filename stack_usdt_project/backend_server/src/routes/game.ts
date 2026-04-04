@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../services/supabase';
 import { gameLogic } from '../services/gameLogic';
+import { missionService } from '../services/missionService';
 
 const router = Router();
 
@@ -64,10 +65,18 @@ router.post('/end-game', async (req, res) => {
     // Obtener el usuario para devolver el balance actualizado
     const session = await db.getGameSession(session_id);
     let usdtBalance = 0;
+    let userId = '';
     
     if (session) {
+      userId = session.user_id;
       const user = await db.getUserById(session.user_id);
       usdtBalance = user?.usdt_balance || 0;
+
+      await missionService.updateMissionProgress(userId, 'games_played', 1);
+      await missionService.updateMissionProgress(userId, 'lines_cleared', lines_cleared);
+      if (score > 0) {
+        await missionService.updateMissionProgress(userId, 'high_score', score);
+      }
     }
 
     res.json({

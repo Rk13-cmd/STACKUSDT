@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import { db } from '../services/supabase';
 import { nowPayments } from '../services/nowPayments';
+import { bonusService } from '../services/bonusService';
+import { referralService } from '../services/referralService';
+import { missionService } from '../services/missionService';
+import { rateLimits } from '../middleware/rateLimiter';
+import { amlService } from '../services/amlService';
 
 const router = Router();
 
 // POST /api/deposit/create - Create NOWPayments invoice
-router.post('/create', async (req, res) => {
+router.post('/create', rateLimits.deposit, async (req, res) => {
   try {
     const { user_id, amount } = req.body;
 
@@ -92,13 +97,26 @@ router.post('/webhook', async (req, res) => {
 
       if (deposit) {
         await db.updateUserBalance(deposit.user_id, amount, 'add');
+        await db.updateTotalDeposited(deposit.user_id, amount);
 
         await db.createNotification(
           deposit.user_id,
-          'deposit',
+          'deposit_confirmed',
           'Deposit Confirmed',
           `Your deposit of $${amount.toFixed(2)} USDT has been confirmed and added to your balance.`
         );
+
+        await bonusService.checkAndAwardBonus(deposit.user_id, 'first_deposit', amount);
+        await bonusService.checkAndAwardBonus(deposit.user_id, 'reload', amount);
+
+        await referralService.processReferralDeposit(deposit.user_id, amount);
+
+        await missionService.updateMissionProgress(deposit.user_id, 'deposit', amount);
+
+        const amlCheck = await amlService.checkStructuring(deposit.user_id, amount);
+        if (amlCheck.flagged) {
+          await amlService.logAMLAlert(deposit.user_id, 'structuring', amlCheck.reason, 'high');
+        }
       }
     }
 

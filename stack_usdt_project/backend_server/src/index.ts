@@ -12,9 +12,14 @@ import depositRoutes from './routes/deposit';
 import adminRoutes from './routes/admin';
 import tournamentRoutes from './routes/tournament';
 import economyRoutes from './routes/economy';
+import featuresRoutes from './routes/features';
 import { botEngine } from './services/botEngine';
 import { tournamentEngine } from './services/tournamentEngine';
 import { GameRoomManager } from './services/gameRoomManager';
+import { paymentSync } from './services/paymentSync';
+import { stakingService } from './services/stakingService';
+import { bonusService } from './services/bonusService';
+import { referralService } from './services/referralService';
 
 dotenv.config();
 
@@ -48,6 +53,7 @@ app.use('/api/deposit', depositRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/tournament', tournamentRoutes);
 app.use('/api/economy', economyRoutes);
+app.use('/api/features', featuresRoutes);
 
 // Expose active rooms via API
 app.get('/api/game/rooms', (req: Request, res: Response) => {
@@ -100,6 +106,46 @@ server.listen(PORT, () => {
   `);
   botEngine.start();
   tournamentEngine.start();
+
+  setInterval(async () => {
+    try {
+      const result = await paymentSync.syncPendingPayments();
+      if (result.updated > 0 || result.credited > 0) {
+        console.log(`[PaymentSync] Checked: ${result.checked}, Updated: ${result.updated}, Credited: ${result.credited}, Errors: ${result.errors}`);
+      }
+      if (result.stuckPayments.length > 0) {
+        console.warn(`[PaymentSync] ${result.stuckPayments.length} stuck payments detected`);
+      }
+    } catch (err: any) {
+      console.error('[PaymentSync] Sync error:', err.message);
+    }
+  }, 5 * 60 * 1000);
+
+  setInterval(async () => {
+    try {
+      const distributed = await stakingService.distributeAllRewards();
+      if (distributed > 0) {
+        console.log('[Staking] Distributed $' + distributed.toFixed(4) + ' USDT in rewards');
+      }
+    } catch (err: any) {
+      console.error('[Staking] Reward distribution error:', err.message);
+    }
+  }, 24 * 60 * 60 * 1000);
+
+  setInterval(async () => {
+    try {
+      const { supabase } = await import('./services/supabase');
+      const today = new Date().toISOString().split('T')[0];
+      const { error } = await supabase.rpc('create_daily_snapshot', { p_date: today });
+      if (error) {
+        console.error('[DailySnapshot] Error:', error.message);
+      } else {
+        console.log('[DailySnapshot] Snapshot created for ' + today);
+      }
+    } catch (err: any) {
+      console.error('[DailySnapshot] Failed:', err.message);
+    }
+  }, 24 * 60 * 60 * 1000);
 });
 
 export default app;

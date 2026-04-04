@@ -859,6 +859,250 @@ export class DatabaseService {
       .upsert({ key, value, updated_at: new Date().toISOString() });
     if (error) throw new Error(error.message);
   }
+
+  // Audit Logs
+  async createAuditLog(
+    adminUserId: string,
+    action: string,
+    targetType: string,
+    targetId: string,
+    details: any,
+    ipAddress: string
+  ): Promise<void> {
+    if (this.useMock) {
+      console.log(`[AUDIT] ${action} by ${adminUserId} on ${targetType}:${targetId}`);
+      return;
+    }
+    await supabase.from('audit_logs').insert({
+      admin_user_id: adminUserId,
+      action,
+      target_type: targetType,
+      target_id: targetId,
+      details,
+      ip_address: ipAddress,
+    });
+  }
+
+  async getFinancialStatsEnhanced(): Promise<any> {
+    if (this.useMock) {
+      return {
+        total_deposits: 0,
+        total_withdrawals: 0,
+        pending_withdrawals: 0,
+        pending_count: 0,
+        total_users: mockUsers.size,
+        active_users_24h: 0,
+        active_users_7d: 0,
+        net_revenue: 0,
+        total_fees_collected: 0,
+        total_games_played: 0,
+        total_tournaments: 0,
+        total_payouts: 0,
+        house_edge_revenue: 0,
+        avg_deposit: 0,
+        avg_withdrawal: 0,
+        deposit_count: 0,
+        withdrawal_count: 0,
+        completed_withdrawals: 0,
+        failed_withdrawals: 0,
+        total_deposited_all_time: 0,
+        total_withdrawn_all_time: 0,
+        hot_wallet_exposure: 0,
+        deposit_conversion_rate: 0,
+        avg_user_balance: 0,
+        total_user_balances: 0,
+        deposits_today: 0,
+        withdrawals_today: 0,
+        users_today: 0,
+        games_today: 0,
+        revenue_today: 0,
+        revenue_7d: 0,
+        revenue_30d: 0,
+      };
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      { data: deposits },
+      { data: depositsToday },
+      { data: deposits7d },
+      { data: deposits30d },
+      { data: withdrawals },
+      { data: withdrawalsToday },
+      { data: pendingWithdrawals },
+      { count: totalUsers },
+      { count: activeUsers24h },
+      { count: activeUsers7d },
+      { data: gamesPlayed },
+      { data: gamesToday },
+      { data: tournaments },
+    ] = await Promise.all([
+      supabase.from('deposits').select('amount_usdt').eq('payment_status', 'finished'),
+      supabase.from('deposits').select('amount_usdt').eq('payment_status', 'finished').gte('confirmed_at', todayStart),
+      supabase.from('deposits').select('amount_usdt').eq('payment_status', 'finished').gte('confirmed_at', sevenDaysAgo),
+      supabase.from('deposits').select('amount_usdt').eq('payment_status', 'finished').gte('confirmed_at', thirtyDaysAgo),
+      supabase.from('withdrawals').select('amount, fee, status'),
+      supabase.from('withdrawals').select('amount').eq('status', 'completed').gte('processed_at', todayStart),
+      supabase.from('withdrawals').select('amount').eq('status', 'pending'),
+      supabase.from('users').select('*', { count: 'exact', head: true }),
+      supabase.from('users').select('*', { count: 'exact', head: true }).gte('last_active_at', new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
+      supabase.from('users').select('*', { count: 'exact', head: true }).gte('last_active_at', sevenDaysAgo),
+      supabase.from('game_sessions').select('payout_usdt, score').not('payout_usdt', 'is', null),
+      supabase.from('game_sessions').select('id').gte('started_at', todayStart),
+      supabase.from('tournaments').select('prize_pool, rake, entry_fee').eq('status', 'completed'),
+    ]);
+
+    const totalDeposits = deposits?.reduce((s: number, d: any) => s + parseFloat(d.amount_usdt), 0) || 0;
+    const depositsTodayAmount = depositsToday?.reduce((s: number, d: any) => s + parseFloat(d.amount_usdt), 0) || 0;
+    const deposits7dAmount = deposits7d?.reduce((s: number, d: any) => s + parseFloat(d.amount_usdt), 0) || 0;
+    const deposits30dAmount = deposits30d?.reduce((s: number, d: any) => s + parseFloat(d.amount_usdt), 0) || 0;
+
+    const totalWithdrawals = withdrawals?.reduce((s: number, w: any) => s + parseFloat(w.amount), 0) || 0;
+    const totalFees = withdrawals?.reduce((s: number, w: any) => s + parseFloat(w.fee || 0), 0) || 0;
+    const completedWithdrawals = withdrawals?.filter((w: any) => w.status === 'completed').length || 0;
+    const failedWithdrawals = withdrawals?.filter((w: any) => w.status === 'failed' || w.status === 'rejected').length || 0;
+    const withdrawalsTodayAmount = withdrawalsToday?.reduce((s: number, w: any) => s + parseFloat(w.amount), 0) || 0;
+
+    const pendingAmount = pendingWithdrawals?.reduce((s: number, w: any) => s + parseFloat(w.amount), 0) || 0;
+    const totalPayouts = gamesPlayed?.reduce((s: number, g: any) => s + parseFloat(g.payout_usdt || 0), 0) || 0;
+    const tournamentRake = tournaments?.reduce((s: number, t: any) => s + parseFloat(t.rake || 0), 0) || 0;
+
+    const netRevenue = totalDeposits - totalWithdrawals;
+    const houseEdgeRevenue = totalPayouts > 0 ? (totalDeposits - totalPayouts) : 0;
+    const depositCount = deposits?.length || 0;
+    const withdrawalCount = withdrawals?.length || 0;
+    const avgDeposit = depositCount > 0 ? totalDeposits / depositCount : 0;
+    const avgWithdrawal = completedWithdrawals > 0 ? totalWithdrawals / completedWithdrawals : 0;
+
+    const { data: allUsers } = await supabase.from('users').select('usdt_balance, total_deposited');
+    const totalUserBalances = allUsers?.reduce((s: number, u: any) => s + parseFloat(u.usdt_balance || 0), 0) || 0;
+    const totalDepositedAllTime = allUsers?.reduce((s: number, u: any) => s + parseFloat(u.total_deposited || 0), 0) || 0;
+    const avgUserBalance = (allUsers?.length || 0) > 0 ? totalUserBalances / allUsers!.length : 0;
+
+    const usersWhoDeposited = new Set(deposits?.map((d: any) => d.user_id)).size;
+    const depositConversionRate = (totalUsers || 0) > 0 ? (usersWhoDeposited / (totalUsers as number)) * 100 : 0;
+
+    const revenueToday = depositsTodayAmount - withdrawalsTodayAmount;
+    const revenue7d = deposits7dAmount - (withdrawals?.filter((w: any) => w.status === 'completed' && w.processed_at >= sevenDaysAgo).reduce((s: number, w: any) => s + parseFloat(w.amount), 0) || 0);
+    const revenue30d = deposits30dAmount - (withdrawals?.filter((w: any) => w.status === 'completed' && w.processed_at >= thirtyDaysAgo).reduce((s: number, w: any) => s + parseFloat(w.amount), 0) || 0);
+
+    return {
+      total_deposits: totalDeposits,
+      total_withdrawals: totalWithdrawals,
+      pending_withdrawals: pendingAmount,
+      pending_count: pendingWithdrawals?.length || 0,
+      total_users: totalUsers || 0,
+      active_users_24h: activeUsers24h || 0,
+      active_users_7d: activeUsers7d || 0,
+      net_revenue: netRevenue,
+      total_fees_collected: totalFees,
+      total_games_played: gamesPlayed?.length || 0,
+      total_tournaments: tournaments?.length || 0,
+      total_payouts: totalPayouts,
+      house_edge_revenue: houseEdgeRevenue + tournamentRake,
+      avg_deposit: avgDeposit,
+      avg_withdrawal: avgWithdrawal,
+      deposit_count: depositCount,
+      withdrawal_count: withdrawalCount,
+      completed_withdrawals: completedWithdrawals,
+      failed_withdrawals: failedWithdrawals,
+      total_deposited_all_time: totalDepositedAllTime,
+      total_withdrawn_all_time: totalWithdrawals,
+      hot_wallet_exposure: pendingAmount,
+      deposit_conversion_rate: depositConversionRate,
+      avg_user_balance: avgUserBalance,
+      total_user_balances: totalUserBalances,
+      deposits_today: depositsTodayAmount,
+      withdrawals_today: withdrawalsTodayAmount,
+      users_today: activeUsers24h || 0,
+      games_today: gamesToday?.length || 0,
+      revenue_today: revenueToday,
+      revenue_7d: revenue7d,
+      revenue_30d: revenue30d,
+    };
+  }
+
+  async getRevenueByPeriod(days: number = 30): Promise<any[]> {
+    if (this.useMock) return [];
+
+    const { data: deposits } = await supabase
+      .from('deposits')
+      .select('amount_usdt, confirmed_at, created_at')
+      .eq('payment_status', 'finished')
+      .gte('created_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: true });
+
+    const { data: withdrawals } = await supabase
+      .from('withdrawals')
+      .select('amount, processed_at, status')
+      .eq('status', 'completed')
+      .gte('processed_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
+      .order('processed_at', { ascending: true });
+
+    const dailyData: Record<string, { date: string; deposits: number; withdrawals: number; net: number; games: number; users: number }> = {};
+
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const key = date.toISOString().split('T')[0];
+      dailyData[key] = { date: key, deposits: 0, withdrawals: 0, net: 0, games: 0, users: 0 };
+    }
+
+    deposits?.forEach((d: any) => {
+      const key = (d.confirmed_at || d.created_at).split('T')[0];
+      if (dailyData[key]) dailyData[key].deposits += parseFloat(d.amount_usdt);
+    });
+
+    withdrawals?.forEach((w: any) => {
+      const key = w.processed_at.split('T')[0];
+      if (dailyData[key]) dailyData[key].withdrawals += parseFloat(w.amount);
+    });
+
+    const { data: games } = await supabase
+      .from('game_sessions')
+      .select('user_id, started_at')
+      .gte('started_at', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString());
+
+    games?.forEach((g: any) => {
+      const key = g.started_at.split('T')[0];
+      if (dailyData[key]) {
+        dailyData[key].games += 1;
+      }
+    });
+
+    Object.values(dailyData).forEach((d: any) => {
+      d.net = d.deposits - d.withdrawals;
+    });
+
+    return Object.values(dailyData).sort((a: any, b: any) => a.date.localeCompare(b.date));
+  }
+
+  async getAllWithdrawals(limit: number = 100): Promise<any[]> {
+    if (this.useMock) return [];
+    const { data, error } = await supabase
+      .from('withdrawals')
+      .select('*, users(username, email)')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
+  async updateTotalDeposited(userId: string, amount: number): Promise<void> {
+    if (this.useMock) return;
+    const user = await this.getUserById(userId);
+    if (!user) return;
+    const newTotal = parseFloat((((user as any).total_deposited || 0) + amount).toFixed(8));
+    await supabase.from('users').update({ total_deposited: newTotal }).eq('id', userId);
+  }
+
+  async updateLastActive(userId: string): Promise<void> {
+    if (this.useMock) return;
+    await supabase.from('users').update({ last_active_at: new Date().toISOString() }).eq('id', userId);
+  }
 }
 
 export const db = new DatabaseService();

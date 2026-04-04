@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '../services/supabase';
+import { rateLimits } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -11,8 +12,7 @@ function getSupabaseAdmin() {
   );
 }
 
-// POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', rateLimits.auth, async (req, res) => {
   try {
     const { email, password, username } = req.body;
 
@@ -100,7 +100,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimits.auth, async (req, res) => {
   try {
     const { email, password } = req.body;
 

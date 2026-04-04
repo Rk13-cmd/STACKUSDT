@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { db } from '../services/supabase';
+import { rateLimits } from '../middleware/rateLimiter';
+import { amlService } from '../services/amlService';
 
 const router = Router();
 
 // POST /api/withdraw - Solicitar retiro
-router.post('/', async (req, res) => {
+router.post('/', rateLimits.withdraw, async (req, res) => {
   try {
     const { user_id, amount, wallet_address, network } = req.body;
 
@@ -50,6 +52,11 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ 
         error: 'Invalid wallet address format' 
       });
+    }
+
+    const amlCheck = await amlService.checkWithdrawalPattern(user_id, amount);
+    if (amlCheck.flagged) {
+      await amlService.logAMLAlert(user_id, 'withdrawal_pattern', amlCheck.reason, amount > 5000 ? 'high' : 'medium');
     }
 
     const withdrawal = await db.createWithdrawal(
