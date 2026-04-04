@@ -55,8 +55,23 @@ app.get('/api/game/rooms', (req: Request, res: Response) => {
 });
 
 // Serve Flutter Web static files
-// In production, __dirname is dist/, so we go up to backend_server/ then into frontend_build/
-const frontendPath = path.resolve(process.cwd(), 'frontend_build');
+// Try multiple possible paths for production vs development
+const possiblePaths = [
+  path.join(__dirname, '..', 'frontend_build'),           // from dist/
+  path.join(process.cwd(), 'stack_usdt_project', 'backend_server', 'frontend_build'), // from repo root
+  path.join(__dirname, '..', '..', 'frontend_build'),     // fallback
+];
+
+let frontendPath = possiblePaths[0];
+for (const p of possiblePaths) {
+  try {
+    require('fs').accessSync(path.join(p, 'index.html'));
+    frontendPath = p;
+    break;
+  } catch {
+    // try next path
+  }
+}
 app.use(express.static(frontendPath));
 
 // Catch-all: serve Flutter app for non-API routes
