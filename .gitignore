@@ -2,7 +2,6 @@
 stack_admin/
 
 # Flutter builds
-**/build/
 **/.dart_tool/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
