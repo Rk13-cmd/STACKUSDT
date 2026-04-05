@@ -10,6 +10,10 @@ import 'features/deposit/deposit_screen.dart';
 import 'features/tournament/tournament_screen.dart';
 import 'features/leaderboard/leaderboard_screen.dart';
 import 'features/vip/vip_screen.dart';
+import 'features/missions/missions_screen.dart';
+import 'features/referrals/referrals_screen.dart';
+import 'features/staking/staking_screen.dart';
+import 'features/bonuses/bonuses_screen.dart';
 import 'features/auth/login_screen.dart';
 
 void main() async {
@@ -142,6 +146,50 @@ class _MainNavigationState extends State<MainNavigation> {
                 ),
               ),
               NavigationRailDestination(
+                icon: Icon(Icons.flag_outlined, color: AppColors.textSecondary),
+                selectedIcon: Icon(Icons.flag, color: AppColors.amber),
+                label: Text(
+                  'MISSIONS',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              NavigationRailDestination(
+                icon: Icon(
+                  Icons.card_giftcard_outlined,
+                  color: AppColors.textSecondary,
+                ),
+                selectedIcon: Icon(
+                  Icons.card_giftcard,
+                  color: AppColors.neonGreen,
+                ),
+                label: Text(
+                  'BONUSES',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              NavigationRailDestination(
+                icon: Icon(
+                  Icons.people_outline,
+                  color: AppColors.textSecondary,
+                ),
+                selectedIcon: Icon(Icons.people, color: AppColors.cyan),
+                label: Text(
+                  'REFERRALS',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              NavigationRailDestination(
+                icon: Icon(
+                  Icons.savings_outlined,
+                  color: AppColors.textSecondary,
+                ),
+                selectedIcon: Icon(Icons.savings, color: AppColors.amber),
+                label: Text(
+                  'STAKING',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              NavigationRailDestination(
                 icon: Icon(
                   Icons.workspace_premium_outlined,
                   color: AppColors.textSecondary,
@@ -216,6 +264,10 @@ class _MainNavigationState extends State<MainNavigation> {
                 LeaderboardScreen(),
                 DepositScreen(),
                 ShopScreen(),
+                MissionsScreen(),
+                BonusesScreen(),
+                ReferralsScreen(),
+                StakingScreen(),
                 VipScreen(),
               ],
             ),
